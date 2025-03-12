@@ -1,7 +1,7 @@
 name: Deploy to Minikube using GitHub Actions
 
 on: [push]
-  
+
 jobs:
   job1:
     runs-on: ubuntu-latest
@@ -26,6 +26,37 @@ jobs:
       run: kubectl get pods -A
     - name: Check Kubernetes Events
       run: kubectl get events --sort-by='.lastTimestamp' -n default
+    - name: Wait for Node.js Pod to be Running
+      run: |
+        POD_NAME=$(kubectl get pods -l app=nodejs-app -o jsonpath='{.items[0].metadata.name}')
+        
+        # Timeout and interval settings
+        TIMEOUT=300  # Timeout in seconds (5 minutes)
+        WAIT_INTERVAL=10  # Interval to check pod status in seconds
+        START_TIME=$(date +%s)
+
+        # Loop to check pod status
+        while true; do
+          POD_STATUS=$(kubectl get pod "$POD_NAME" -o jsonpath='{.status.phase}')
+          
+          # Check if the pod is running
+          if [[ "$POD_STATUS" == "Running" ]]; then
+            echo "Pod is running: $POD_NAME"
+            break
+          fi
+
+          # Check for timeout
+          CURRENT_TIME=$(date +%s)
+          ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
+
+          if [[ "$ELAPSED_TIME" -ge "$TIMEOUT" ]]; then
+            echo "Timeout reached, pod did not start within $TIMEOUT seconds."
+            exit 1
+          fi
+
+          # Wait for the specified interval before checking again
+          sleep "$WAIT_INTERVAL"
+        done
     - name: Get Logs for Node.js Pod
       run: |
         POD_NAME=$(kubectl get pods -l app=nodejs-app -o jsonpath='{.items[0].metadata.name}')
